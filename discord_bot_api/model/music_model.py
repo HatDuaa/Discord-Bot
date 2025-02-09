@@ -19,7 +19,6 @@ class MusicState:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(MusicState, cls).__new__(cls)
-            # Thêm dấu gạch dưới để tránh xung đột tên
             cls._instance._queue = []
             cls._instance._current_message = None
             cls._instance._is_playing = False
@@ -27,7 +26,6 @@ class MusicState:
     
     @property
     def current_message(self) -> Optional[discord.Message]:
-        # Sửa để trả về biến instance thay vì gọi chính nó
         return self._current_message
     
     @property
