@@ -1,0 +1,8 @@
+discord.py
+loguru
+python-dotenv
+yt-dlp
+pydub
+ffmpeg-python
+PyNaCl
+pydantic
