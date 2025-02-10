@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 import discord
@@ -9,9 +10,30 @@ class MusicInfo(BaseModel):
     thumbnail: str
     webpage_url: str
     duration: int
+
+    view_count: int = 0
+    like_count: int = 0
+    channel: str = "Unknown"
+    channel_url: str = ""
+    upload_date: str = ""
+    description: str = ""
     
     def __str__(self):
-        return f'{self.title} | {self.duration}s'
+        minutes, seconds = divmod(self.duration, 60)
+        return f'{self.title} | {int(minutes)}:{int(seconds):02d}'
+    
+    def _duration(self):
+        minutes, seconds = divmod(self.duration, 60)
+        return f'{int(minutes)}m:{int(seconds):02d}'
+    
+
+class RequestInfo(BaseModel):
+    music_info: MusicInfo
+    requester: discord.Member
+    time: datetime
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
 
 class MusicState:
     _instance = None
@@ -40,15 +62,15 @@ class MusicState:
     def current_message(self, message: discord.Message):
         self._current_message = message
     
-    def add_to_queue(self, music_info: MusicInfo):
-        self._queue.append(music_info)
+    def add_to_queue(self, request_info: RequestInfo):
+        self._queue.append(request_info)
     
-    def remove_from_queue(self) -> Optional[MusicInfo]:
+    def remove_from_queue(self) -> Optional[RequestInfo]:
         if self._queue:
             return self._queue.pop(0)
         return None
     
-    def get_queue(self) -> List[MusicInfo]:
+    def get_queue(self) -> List[RequestInfo]:
         return self._queue.copy()
     
     def clear_queue(self):
@@ -61,5 +83,19 @@ def map_music_info(info) -> MusicInfo:
         url=info['url'],
         thumbnail=info['thumbnail'],
         webpage_url=info['webpage_url'],
-        duration=info['duration']
+        duration=info['duration'],
+
+        view_count=info.get('view_count', 0),
+        like_count=info.get('like_count', 0),
+        channel=info.get('uploader', 'Unknown'),
+        channel_url=info.get('uploader_url', ''),
+        upload_date=info.get('upload_date', ''),
+        description=info.get('description', '')
+    )
+
+def map_request_info(music_info: MusicInfo, requester: discord.Member, time: datetime = datetime.now()) -> RequestInfo:
+    return RequestInfo(
+        music_info=music_info,
+        requester=requester,
+        time=time
     )

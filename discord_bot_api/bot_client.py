@@ -3,6 +3,7 @@ from discord.ext import commands
 from loguru import logger
 
 from config import SERVER_ID
+from discord_bot_libs.constants import Author
 from discord_bot_libs.manager import bot_manager, music_manager
 
 
@@ -12,6 +13,8 @@ class Client(commands.Bot):
         super().__init__(*args, **kwargs)
 
     async def on_ready(self):
+        """Called when bot is ready"""
+        await Author.initialize(client)
         logger.info(f"Bot is ready as {self.user}")
         try:
             guild = discord.Object(id=SERVER_ID)
@@ -57,7 +60,12 @@ async def ping(interaction: discord.Interaction):
 async def printer(interaction: discord.Interaction, message: str):
     await interaction.response.send_message(message)
 
-@client.tree.command(name='play', description='Play music from YouTube', guild=GUILD_ID)
+@client.tree.command(name='play', description='Phát nhạc trên youtube', guild=GUILD_ID)
 async def play_music(interaction: discord.Interaction, query: str):
     await interaction.response.defer()
     await music_manager.play(interaction, query)
+
+@client.tree.command(name='skip', description='Chuyển bài kế tiếp', guild=GUILD_ID)
+async def skip_music(interaction: discord.Interaction):
+    await interaction.response.defer()
+    await music_manager.skip(interaction)

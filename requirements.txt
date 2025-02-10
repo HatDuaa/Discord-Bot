@@ -6,3 +6,5 @@ pydub
 ffmpeg-python
 PyNaCl
 pydantic
+fastapi
+uvicorn

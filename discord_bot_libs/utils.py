@@ -1,5 +1,7 @@
 import asyncio
+import time
 import discord
+from fastapi import Request
 from loguru import logger
 import yt_dlp
 from discord_bot_api.model.music_model import MusicInfo, map_music_info
@@ -27,3 +29,15 @@ async def send_temp_message(interaction: discord.Interaction, content: str, dele
         await message.delete()
     except discord.NotFound:
         pass  # Message already deleted
+
+
+async def log_request_time_async(request: Request, call_next):
+	start_time = time.time()
+	response = await call_next(request)
+	end_time = time.time()
+
+	elapsed_time = (end_time - start_time) * 1000  # Convert to milliseconds
+
+	logger.info(f"{request.method} {request.url.path} - elapsed: {elapsed_time:.2f} ms | headers: {request.headers}")
+
+	return response
