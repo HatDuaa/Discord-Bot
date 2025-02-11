@@ -7,7 +7,7 @@ from loguru import logger
 from typing import Optional
 
 from discord_bot_api.model.music_model import MusicInfo, MusicState, RequestInfo, map_request_info
-from discord_bot_libs.ui.music_ui import MusicControlButtons, create_now_playing_embed
+from discord_bot_libs.ui.music_ui import MusicControlButtons, MusicEmbed
 from discord_bot_libs.utils import get_music_info, send_temp_message
 
 FFMPEG_OPTIONS = {
@@ -17,26 +17,42 @@ FFMPEG_OPTIONS = {
 
 class MusicPlayer:
     def __init__(self):
+        self._initialize_state()
+        self._initialize_thread_pool()
+
+    def _initialize_state(self):
         self.music_state = MusicState()
+        self.music_embed = MusicEmbed()
         self.voice_client: Optional[discord.VoiceClient] = None
         self.last_interaction: Optional[discord.Interaction] = None
+
+    def _initialize_thread_pool(self):
         self.player_thread_pool = ThreadPoolExecutor(max_workers=1)
         self.current_player_task = None
 
     async def play(self, interaction: discord.Interaction, query: str):
-        """Handle play command"""
+        """Handle play command with queue management"""
         self.last_interaction = interaction
+        
+        music_info = await self._fetch_music_info(query)
+        if not music_info:
+            return
+
+        request_info = map_request_info(music_info, interaction.user)
+        await self._handle_queue_addition(interaction, request_info)
+
+    async def _fetch_music_info(self, query: str) -> Optional[MusicInfo]:
         music_info = await get_music_info(query)
         if not music_info:
             logger.error(f"❌ Không tìm thấy bài hát: {query}")
-            await send_temp_message(interaction, "❌ Không tìm thấy bài hát")
-            return
-        
-        request_info = map_request_info(music_info, interaction.user)
+            await send_temp_message(self.last_interaction, "❌ Không tìm thấy bài hát")
+            return None
+        return music_info
 
+    async def _handle_queue_addition(self, interaction: discord.Interaction, request_info: RequestInfo):
         self.music_state.add_to_queue(request_info)
-        logger.info(f"➕ Added to queue: {music_info}")
-        await send_temp_message(interaction, f"➕ Đã thêm: {music_info}")
+        logger.info(f"➕ Added to queue: {request_info.music_info}")
+        await send_temp_message(interaction, f"➕ Đã thêm: {request_info.music_info}")
 
         if not self.music_state.is_playing:
             await self._play_next(interaction)
@@ -125,7 +141,7 @@ class MusicPlayer:
 
     async def _update_player_ui(self, interaction, request_info, time_played=0):
         """Update music player UI"""
-        embed = await create_now_playing_embed(request_info, time_played)
+        embed = await self.music_embed.create_now_playing(request_info, time_played)
         view = MusicControlButtons(self.voice_client, self)
         
         if self.music_state.current_message:
