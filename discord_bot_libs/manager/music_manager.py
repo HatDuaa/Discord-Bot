@@ -27,8 +27,18 @@ class MusicPlayer:
         self.last_interaction: Optional[discord.Interaction] = None
 
     def _initialize_thread_pool(self):
+        """Initialize thread pool with cleanup"""
+        if hasattr(self, 'player_thread_pool'):
+            # Shutdown existing pool
+            self.player_thread_pool.shutdown(wait=False)
+            
+        if hasattr(self, 'current_player_task') and self.current_player_task:
+            # Cancel current task
+            self.current_player_task.cancel()
+            self.current_player_task = None
+            
+        # Create new pool
         self.player_thread_pool = ThreadPoolExecutor(max_workers=1)
-        self.current_player_task = None
 
     async def play(self, interaction: discord.Interaction, query: str):
         """Handle play command with queue management"""
@@ -40,6 +50,9 @@ class MusicPlayer:
 
         request_info = map_request_info(music_info, interaction.user)
         await self._handle_queue_addition(interaction, request_info)
+
+        if not self.music_state.is_playing:
+            await self._play_next(interaction)
 
     async def _fetch_music_info(self, query: str) -> Optional[MusicInfo]:
         music_info = await get_music_info(query)
@@ -54,31 +67,27 @@ class MusicPlayer:
         logger.info(f"➕ Added to queue: {request_info.music_info}")
         await send_temp_message(interaction, f"➕ Đã thêm: {request_info.music_info}")
 
-        if not self.music_state.is_playing:
-            await self._play_next(interaction)
-
     async def skip(self, interaction: discord.Interaction):
         """Handle skip command"""
         self.last_interaction = interaction
-        if not self.voice_client or not self.voice_client.is_playing():
-            logger.error("❌ Không có bài hát nào đang phát")
-            await send_temp_message(interaction, "❌ Không có bài hát nào đang phát")
-            return
-
-        # await send_temp_message(interaction, "⏭️ Đã chuyển bài!")
+        await send_temp_message(interaction, "⏭️ Chuyển bài!")
         self.voice_client.stop()
-        # await self._play_next(interaction)
         
     async def _play_music(self, interaction: discord.Interaction, request_info: RequestInfo):
         """Play a single music track"""
         self.music_state.is_playing = True
         music_info = request_info.music_info
+
+        # Force cleanup of previous playback
+        self._initialize_thread_pool()
+
         if not await self._ensure_voice_client(interaction):
             return
 
         logger.info(f"🎵 Start playing: {music_info.title}")
         logger.info(f"🎧 Channel: {interaction.user.voice.channel.name}")
         logger.info(f"👤 Requested by: {interaction.user.display_name}")
+        # await send_temp_message(interaction, f"🎵 Đang phát: {music_info.title}")
         
         audio_source = discord.FFmpegPCMAudio(
             music_info.url,
@@ -89,9 +98,9 @@ class MusicPlayer:
             start_time = time.time()
             try:
                 # Phát nhạc trong thread riêng
-                self.voice_client.play(audio_source, after=after_playing)
+                self.voice_client.play(audio_source)
                 # Đợi cho đến khi bài hát kết thúc
-                while self.voice_client and self.voice_client.is_playing():
+                while (self.voice_client and (self.voice_client.is_playing() or self.voice_client.is_paused())):
                     threading.Event().wait(1)
                     time_played = min(int(time.time() - start_time), music_info.duration - 1)
                     # Sử dụng run_coroutine_threadsafe để gọi coroutine từ thread
@@ -99,17 +108,16 @@ class MusicPlayer:
                         self._update_player_ui(interaction, request_info, time_played),
                         interaction.client.loop,
                     )
-                    try:
-                        future.result()  # Đợi kết quả
-                    except Exception as e:
-                        logger.error(f"Error updating UI: {e}")
+
+                # After playback finished
+                logger.info(f"🔚 Kết thúc bài hát: {music_info.title}")
+                # Call after_playing in the same thread
+                after_playing()
             except Exception as e:
                 logger.error(f"Error in player thread: {e}")
 
-        def after_playing(error):
-            if error:
-                logger.error(f"Error playing audio: {error}")
-            
+        def after_playing():
+            logger.info(f"afer_playing | music_info: {music_info}")
             future = asyncio.run_coroutine_threadsafe(
                 self._play_next(self.last_interaction), 
                 self.last_interaction.client.loop
@@ -118,10 +126,6 @@ class MusicPlayer:
                 future.result()
             except Exception as e:
                 logger.error(f"Error in after_playing: {e}")
-
-        # Hủy task cũ nếu có
-        if self.current_player_task:
-            self.current_player_task.cancel()
         
         # Tạo task mới trong thread pool
         self.current_player_task = self.player_thread_pool.submit(play_in_thread)

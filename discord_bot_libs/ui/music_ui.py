@@ -14,6 +14,7 @@ class MusicControlButtons(discord.ui.View):
     @discord.ui.button(label="⏸️ Pause", style=discord.ButtonStyle.primary)
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
+        logger.info("Pause button clicked")
         
         if self.voice_client.is_playing():
             self.voice_client.pause()
@@ -27,6 +28,7 @@ class MusicControlButtons(discord.ui.View):
     @discord.ui.button(label="⏭️ Skip", style=discord.ButtonStyle.secondary)
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
+        logger.info("Skip button clicked")
         
         try:
             await self.music_manager.skip(interaction)
@@ -49,8 +51,10 @@ class MusicEmbed:
         
         await MusicEmbed._add_requester(embed, request_info)
         MusicEmbed._add_thumbnail(embed, music_info)
+        # MusicEmbed._add_space(embed)
         MusicEmbed._add_progress_bar(embed, music_info, time_played)
         MusicEmbed._add_track_info(embed, music_info)
+        MusicEmbed._add_space(embed)
         await MusicEmbed._add_footer(embed)
         
         return embed
@@ -73,7 +77,7 @@ class MusicEmbed:
         process_bar = UIHelper.generate_process_bar(music_info.duration, time_played)
         time_display = UIHelper.format_time_display(time_played, music_info._duration())
         embed.add_field(
-            name="Progress",
+            name="",
             value=f"{process_bar}  {time_display}",
             inline=False
         )
