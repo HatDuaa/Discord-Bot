@@ -21,7 +21,7 @@ async def get_music_info(query) -> MusicInfo:
         return None
     
 
-async def send_temp_message(interaction: discord.Interaction, content: str, delete_after: float = 10.0):
+async def send_temp_message(interaction: discord.Interaction, content: str, delete_after: float = 5.0):
     """Send a temporary message that will be deleted after specified seconds"""
     message = await interaction.followup.send(content=content, wait=True, ephemeral=False)
     await asyncio.sleep(delete_after)

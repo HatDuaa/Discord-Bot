@@ -15,11 +15,11 @@ class Client(commands.Bot):
     async def on_ready(self):
         """Called when bot is ready"""
         await Author.initialize(client)
-        logger.info(f"Bot is ready as {self.user}")
         try:
             guild = discord.Object(id=SERVER_ID)
             synced = await self.tree.sync(guild=guild)
             logger.info(f"Synced {len(synced)} command(s)")
+            logger.info(f"Bot is ready as {self.user}")
         except Exception as e:
             logger.error(f"Failed to sync commands: {e}")
 

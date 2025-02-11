@@ -24,7 +24,7 @@ class MusicInfo(BaseModel):
     
     def _duration(self):
         minutes, seconds = divmod(self.duration, 60)
-        return f'{int(minutes)}m:{int(seconds):02d}'
+        return f'{int(minutes)}:{int(seconds):02d}'
     
 
 class RequestInfo(BaseModel):

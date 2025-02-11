@@ -20,7 +20,7 @@ class MusicPlayer:
         self.music_state = MusicState()
         self.voice_client: Optional[discord.VoiceClient] = None
         self.last_interaction: Optional[discord.Interaction] = None
-        self.player_thread_pool = ThreadPoolExecutor(max_workers=2)
+        self.player_thread_pool = ThreadPoolExecutor(max_workers=1)
         self.current_player_task = None
 
     async def play(self, interaction: discord.Interaction, query: str):
@@ -28,6 +28,7 @@ class MusicPlayer:
         self.last_interaction = interaction
         music_info = await get_music_info(query)
         if not music_info:
+            logger.error(f"❌ Không tìm thấy bài hát: {query}")
             await send_temp_message(interaction, "❌ Không tìm thấy bài hát")
             return
         
@@ -44,11 +45,13 @@ class MusicPlayer:
         """Handle skip command"""
         self.last_interaction = interaction
         if not self.voice_client or not self.voice_client.is_playing():
+            logger.error("❌ Không có bài hát nào đang phát")
             await send_temp_message(interaction, "❌ Không có bài hát nào đang phát")
             return
 
+        # await send_temp_message(interaction, "⏭️ Đã chuyển bài!")
         self.voice_client.stop()
-        await self._play_next(interaction)
+        # await self._play_next(interaction)
         
     async def _play_music(self, interaction: discord.Interaction, request_info: RequestInfo):
         """Play a single music track"""
@@ -122,8 +125,8 @@ class MusicPlayer:
 
     async def _update_player_ui(self, interaction, request_info, time_played=0):
         """Update music player UI"""
-        embed = await create_now_playing_embed(request_info, time_played, interaction.client)
-        view = MusicControlButtons(self.voice_client)
+        embed = await create_now_playing_embed(request_info, time_played)
+        view = MusicControlButtons(self.voice_client, self)
         
         if self.music_state.current_message:
             await self.music_state.current_message.edit(embed=embed, view=view)

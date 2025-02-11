@@ -1,13 +1,15 @@
 import discord
+from loguru import logger
 
 from discord_bot_api.model.music_model import MusicInfo, RequestInfo
-from discord_bot_libs.constants import Author, TimeConfig
+from discord_bot_libs.constants import Author, Embed, ProcessBar, TimeConfig
 
 
 class MusicControlButtons(discord.ui.View):
-    def __init__(self, voice_client: discord.VoiceClient):
+    def __init__(self, voice_client: discord.VoiceClient, music_manager=None):
         super().__init__(timeout=None)
         self.voice_client = voice_client
+        self.music_manager = music_manager
 
     @discord.ui.button(label="⏸️ Pause", style=discord.ButtonStyle.primary)
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -22,24 +24,43 @@ class MusicControlButtons(discord.ui.View):
             
         await interaction.message.edit(view=self)
 
-async def create_now_playing_embed(request_info: RequestInfo, time_played: int, client: discord.client) -> discord.Embed:
+    @discord.ui.button(label="⏭️ Skip", style=discord.ButtonStyle.secondary)
+    async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            if self.voice_client and self.voice_client.is_playing():
+                await self.music_manager.skip(interaction)
+                await interaction.followup.send("⏭️ Đã chuyển bài!", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ Không có bài hát nào đang phát!", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in skip button: {e}")
+            await interaction.followup.send("❌ Có lỗi xảy ra khi skip!", ephemeral=True)
+
+
+
+async def create_now_playing_embed(request_info: RequestInfo, time_played: int) -> discord.Embed:
     """Create an embed for the now playing message"""
     music_info = request_info.music_info
     
     # Create main embed with only title first
     embed = discord.Embed(
-        title="🎵 Now Playing",
-        description=f"**[{music_info.title}]({music_info.webpage_url})**",  # Add separator
+        title=music_info.title,  # Plain title
+        url=music_info.webpage_url,  # URL will be attached to title
         color=discord.Color.purple()
     )
-    
+
+    # Set requester as author
+    embed.set_author(
+        name=f"Requested by {request_info.requester.display_name}",
+        icon_url=request_info.requester.display_avatar.url
+    )
+
     # Set image right after title/description
     if music_info.thumbnail:
         hq_thumbnail = music_info.thumbnail.replace('hqdefault', 'maxresdefault')
-        embed.set_image(url=hq_thumbnail)
-    
-    # Add empty field as spacer after image
-    embed.add_field(name="", value="", inline=False)
+        embed.set_thumbnail(url=hq_thumbnail)
     
     # Progress bar in its own row
     process_bar = generate_process_bar(music_info.duration, time_played)
@@ -68,48 +89,28 @@ async def create_now_playing_embed(request_info: RequestInfo, time_played: int, 
             inline=True
         )
     
-    # # Status and Queue in same row
-    # embed.add_field(
-    #     name="Status",
-    #     value="▶️ Playing",
-    #     inline=True
-    # )
-    
-    # embed.add_field(
-    #     name="Queue Position",
-    #     value="#1",
-    #     inline=True
-    # )
+    # Add empty field as spacer after image
+    embed.add_field(name="", value=f"{Embed.MAX_LENGTH.value * ' '}", inline=False)
 
-    # Footer at the bottom
+    # Set bot creator in footer
     embed.set_footer(
-        text=f"Requested by {request_info.requester.display_name} • {request_info.time.strftime(TimeConfig.HUMAN_READABLE_HOUR_MIN)}",
-        icon_url=request_info.requester.display_avatar.url
-    )
-
-    # Add bot creator as author
-    author_avatar = await Author.get_avatar_url()
-    embed.set_author(
-        name=Author.NAME,
-        url=Author.USER_URL,
-        icon_url=author_avatar
+        text=f"{Author.WATERMARK}",
+        icon_url=await Author.get_avatar_url()
     )
 
     return embed
 
 
 def generate_process_bar(duration: int, time_played: int) -> str:
-    """Generate a progress bar for the music player"""
     progress = time_played / duration
-    bar_length = 30
+    bar_length = ProcessBar.BAR_LENGTH.value
     progress_position = int(progress * bar_length)
     
-    # Tạo thanh progress với 2 ký tự khác nhau
-    loaded = "━" * progress_position  # Phần đã phát
-    remaining = "─" * (bar_length - progress_position)  # Phần còn lại
+    loaded = f"{ProcessBar.HEAVY_HORIZONTAL}" * progress_position
+    remaining = f"{ProcessBar.LIGHT_HORIZONTAL}" * (bar_length - progress_position)
+    cursor = f"{ProcessBar.BLACK_CIRCLE}"
     
-    # Thêm cursor vào vị trí hiện tại
-    return f"{loaded}▶{remaining}"
+    return f"{loaded}{cursor}{remaining}"
 
 
 def convert_seconds_to_human_readable(seconds: int) -> str:
