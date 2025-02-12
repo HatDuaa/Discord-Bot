@@ -8,7 +8,7 @@ from typing import Optional
 
 from discord_bot_api.model.music_model import MusicInfo, MusicState, RequestInfo, map_request_info
 from discord_bot_libs.ui.music_ui import MusicControlButtons, MusicEmbed
-from discord_bot_libs.utils import get_music_info, send_temp_message
+from discord_bot_libs.utils import get_music_info, send_temp_embed
 
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
@@ -58,21 +58,52 @@ class MusicPlayer:
         music_info = await get_music_info(query)
         if not music_info:
             logger.error(f"❌ Không tìm thấy bài hát: {query}")
-            await send_temp_message(self.last_interaction, "❌ Không tìm thấy bài hát")
+            await send_temp_embed(self.last_interaction, 'play', f"❌ Không tìm thấy bài hát")
             return None
         return music_info
 
     async def _handle_queue_addition(self, interaction: discord.Interaction, request_info: RequestInfo):
-        self.music_state.add_to_queue(request_info)
-        logger.info(f"➕ Added to queue: {request_info.music_info}")
-        await send_temp_message(interaction, f"➕ Đã thêm: {request_info.music_info}")
+        position = self.music_state.add_to_queue(request_info)
+        logger.info(f"➕ Added to queue: {request_info.music_info} | Position: {position}")
+        await send_temp_embed(interaction, f"➕ Đã thêm", f"{request_info.music_info} | Vị trí: {position}", request_info.music_info.webpage_url)
+
+    async def _play_next(self, interaction: discord.Interaction):
+        """Play next song in queue"""
+        if self.music_state.get_queue():
+            request_info = self.music_state.remove_from_queue()
+            await self._play_music(interaction, request_info)
+        else:
+            self.music_state.is_playing = False
+            logger.info("🔚 Hết bài hát trong hàng đợi")
+            await send_temp_embed(interaction, "🔚 Play next", "Hết bài hát trong hàng đợi")
 
     async def skip(self, interaction: discord.Interaction):
         """Handle skip command"""
         self.last_interaction = interaction
-        await send_temp_message(interaction, "⏭️ Chuyển bài!")
+        await send_temp_embed(interaction, "⏭️ Chuyển bài")
         self.voice_client.stop()
         
+    async def previous(self, interaction: discord.Interaction):
+        """Handle previous command"""
+        self.last_interaction = interaction
+        previous_request = self.music_state.get_previous()
+        if previous_request:
+            self.music_state.add_to_queue_front(previous_request)
+            await send_temp_embed(interaction, "⏮️ Quay lại bài trước!")
+            self.voice_client.stop()
+        else:
+            await send_temp_embed(interaction, "⏮️ Previous", "❌ Không có bài hát trước đó trong lịch sử!")
+
+    async def queue(self, interaction: discord.Interaction):
+        """Handle queue command"""
+        queue = self.music_state.get_queue()
+        if not queue:
+            await send_temp_embed(interaction, "Queue", "🔚 Hàng đợi trống!")
+            return
+
+        embed = await self.music_embed.create_queue(queue)
+        await interaction.followup.send(embed=embed)
+
     async def _play_music(self, interaction: discord.Interaction, request_info: RequestInfo):
         """Play a single music track"""
         self.music_state.is_playing = True
@@ -87,7 +118,6 @@ class MusicPlayer:
         logger.info(f"🎵 Start playing: {music_info.title}")
         logger.info(f"🎧 Channel: {interaction.user.voice.channel.name}")
         logger.info(f"👤 Requested by: {interaction.user.display_name}")
-        # await send_temp_message(interaction, f"🎵 Đang phát: {music_info.title}")
         
         audio_source = discord.FFmpegPCMAudio(
             music_info.url,
@@ -101,23 +131,33 @@ class MusicPlayer:
                 self.voice_client.play(audio_source)
                 # Đợi cho đến khi bài hát kết thúc
                 while (self.voice_client and (self.voice_client.is_playing() or self.voice_client.is_paused())):
-                    threading.Event().wait(1)
-                    time_played = min(int(time.time() - start_time), music_info.duration - 1)
-                    # Sử dụng run_coroutine_threadsafe để gọi coroutine từ thread
-                    future = asyncio.run_coroutine_threadsafe(
-                        self._update_player_ui(interaction, request_info, time_played),
-                        interaction.client.loop,
-                    )
+                    if self.voice_client.is_playing():  # Only update UI when actually playing
+                        time_played = min(int(time.time() - start_time), music_info.duration - 1)
+                        future = asyncio.run_coroutine_threadsafe(
+                            self._update_player_ui(interaction, request_info, time_played),
+                            interaction.client.loop,
+                        )
+                        try:
+                            future.result()
+                        except Exception as e:
+                            logger.error(f"Error updating UI: {e}")
+                    threading.Event().wait(10)
 
                 # After playback finished
                 logger.info(f"🔚 Kết thúc bài hát: {music_info.title}")
+                # Add to history
+                self.music_state.add_to_history(request_info)
                 # Call after_playing in the same thread
-                after_playing()
+                after_playing(None)
             except Exception as e:
                 logger.error(f"Error in player thread: {e}")
+                after_playing(e)  # Pass the error to after_playing
 
-        def after_playing():
-            logger.info(f"afer_playing | music_info: {music_info}")
+        def after_playing(error):
+            """Handle completion of current track"""
+            if error:
+                logger.error(f"Error playing audio: {error}")
+            logger.info(f"after_playing | music_info: {music_info}")
             future = asyncio.run_coroutine_threadsafe(
                 self._play_next(self.last_interaction), 
                 self.last_interaction.client.loop
@@ -133,7 +173,7 @@ class MusicPlayer:
     async def _ensure_voice_client(self, interaction: discord.Interaction) -> bool:
         """Ensure bot is connected to voice channel"""
         if not interaction.user.voice:
-            await send_temp_message(interaction, "❌ Bạn cần vào kênh thoại trước")
+            await send_temp_embed(interaction, "NOTI", "❌ Bạn cần vào kênh thoại trước")
             return False
 
         voice_channel = interaction.user.voice.channel
@@ -149,21 +189,21 @@ class MusicPlayer:
         view = MusicControlButtons(self.voice_client, self)
         
         if self.music_state.current_message:
-            await self.music_state.current_message.edit(embed=embed, view=view)
+            try:
+                await self.music_state.current_message.edit(embed=embed, view=view)
+            except discord.errors.NotFound:
+                # Message không còn tồn tại, gửi message mới
+                message = await interaction.followup.send(embed=embed, view=view)
+                self.music_state.current_message = message
+            except discord.errors.HTTPException as e:
+                logger.error(f"HTTPException when editing message: {e}")
+                # Gửi message mới nếu có lỗi HTTP
+                message = await interaction.followup.send(embed=embed, view=view)
+                self.music_state.current_message = message
         else:
             message = await interaction.followup.send(embed=embed, view=view)
             self.music_state.current_message = message
-
-    async def _play_next(self, interaction: discord.Interaction):
-        """Play next song in queue"""
-        if self.music_state.get_queue():
-            request_info = self.music_state.remove_from_queue()
-            await self._play_music(interaction, request_info)
-        else:
-            self.music_state.is_playing = False
-            logger.info("🔚 Hết bài hát trong hàng đợi")
-            await send_temp_message(interaction, "🔚 Hết bài hát trong hàng đợi")
-
+    
     async def _handle_playback_finished(self):
         """Handle cleanup after song finishes"""
         if self.music_state.get_queue():
@@ -181,3 +221,9 @@ async def play(interaction: discord.Interaction, query: str):
 
 async def skip(interaction: discord.Interaction):
     await player.skip(interaction)
+
+async def previous(interaction: discord.Interaction):
+    await player.previous(interaction)
+
+async def queue(interaction: discord.Interaction):
+    await player.queue(interaction)

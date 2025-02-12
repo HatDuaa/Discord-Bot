@@ -89,6 +89,7 @@ class ProcessBar(Enum):
     BLACK_HORIZONTAL_RECTANGLE = '▬'
     BLACK_CIRCLE = '●'
     BLACK_VERTICAL_RECTANGLE = '▮'
+    BLACK_VERTICAL_RECTANGLE_MEDIUM = '■'
     BLACK_SMALL_SQUARE = '◾'
 
     LIGHT_SHADE = '░'
@@ -98,6 +99,7 @@ class ProcessBar(Enum):
     WHITE_RECTANGLE = '▭'
     WHITE_CIRCLE = '○'
     WHITE_VERTICAL_RECTANGLE = '▯'
+    WHITE_VERTICAL_RECTANGLE_MEDIUM = '□'
     WHITE_SMALL_SQUARE = '◽'
 
     RADIO_BUTTON = '🔘'
@@ -105,10 +107,11 @@ class ProcessBar(Enum):
     FISHEYE = '◉'
     BLACK_DIAMOND = '◆'
     WHITE_DIAMOND_CONTAINING_BLACK = '◈'
+    BLACK_WHITE_VERTICAL_RECTANGLE_MEDIUM = '◧'
     BLACK_RIGHT_POINTING_TRIANGLE = '▶'
     STAR = '⭐'
 
-    BAR_LENGTH = 35
+    BAR_LENGTH = 20
 
     def __str__(self):
         return self.value

@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
+from collections import deque
 import discord
 
 class MusicInfo(BaseModel):
@@ -35,13 +36,15 @@ class RequestInfo(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
+
 class MusicState:
     _instance = None
     
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(MusicState, cls).__new__(cls)
-            cls._instance._queue = []
+            cls._instance._queue = deque()
+            cls._instance._history = deque()
             cls._instance._current_message = None
             cls._instance._is_playing = False
         return cls._instance
@@ -64,17 +67,33 @@ class MusicState:
     
     def add_to_queue(self, request_info: RequestInfo):
         self._queue.append(request_info)
+        return len(self._queue)
+    
+    def add_to_queue_front(self, request_info: RequestInfo):
+        self._queue.appendleft(request_info)
+        return len(self._queue)
     
     def remove_from_queue(self) -> Optional[RequestInfo]:
         if self._queue:
-            return self._queue.pop(0)
+            return self._queue.popleft()
         return None
     
     def get_queue(self) -> List[RequestInfo]:
-        return self._queue.copy()
+        return list(self._queue)
     
     def clear_queue(self):
         self._queue.clear()
+    
+    def add_to_history(self, request_info: RequestInfo):
+        self._history.appendleft(request_info)
+    
+    def get_previous(self) -> Optional[RequestInfo]:
+        if self._history:
+            return self._history.popleft()
+        return None
+    
+    def clear_history(self):
+        self._history.clear()
 
 
 def map_music_info(info) -> MusicInfo:

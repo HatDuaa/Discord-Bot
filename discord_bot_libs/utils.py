@@ -31,6 +31,25 @@ async def send_temp_message(interaction: discord.Interaction, content: str, dele
         pass  # Message already deleted
 
 
+async def send_temp_embed(interaction: discord.Interaction, title: str = '', description: str = '', url: str = '', delete_after: float = 5.0, color: discord.Color = discord.Color.pink()):
+    """Send a temporary embed message that will be deleted after specified seconds"""
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        url=url,
+        color=color,
+    )
+    
+    try:
+        message = await interaction.followup.send(embed=embed, wait=True, ephemeral=False)
+        await asyncio.sleep(delete_after)
+        await message.delete()
+    except discord.NotFound:
+        pass  # Message already deleted
+    except Exception as e:
+        logger.error(f"Error sending temporary embed: {e}")
+
+
 async def log_request_time_async(request: Request, call_next):
 	start_time = time.time()
 	response = await call_next(request)

@@ -11,6 +11,17 @@ class MusicControlButtons(discord.ui.View):
         self.voice_client = voice_client
         self.music_manager = music_manager
 
+    @discord.ui.button(label="⏭️ Previous", style=discord.ButtonStyle.secondary)
+    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        logger.info("Previous button clicked")
+        
+        try:
+            await self.music_manager.previous(interaction)
+        except Exception as e:
+            logger.error(f"Error in skip button: {e}")
+            await interaction.followup.send("❌ Có lỗi xảy ra khi previous!", ephemeral=True)
+
     @discord.ui.button(label="⏸️ Pause", style=discord.ButtonStyle.primary)
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
@@ -25,17 +36,16 @@ class MusicControlButtons(discord.ui.View):
             
         await interaction.message.edit(view=self)
 
-    @discord.ui.button(label="⏭️ Skip", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="⏭️ Next", style=discord.ButtonStyle.secondary)
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
-        logger.info("Skip button clicked")
+        logger.info("Next button clicked")
         
         try:
             await self.music_manager.skip(interaction)
         except Exception as e:
             logger.error(f"Error in skip button: {e}")
             await interaction.followup.send("❌ Có lỗi xảy ra khi skip!", ephemeral=True)
-
 
 
 class MusicEmbed:
@@ -46,7 +56,7 @@ class MusicEmbed:
         embed = discord.Embed(
             title=music_info.title,
             url=music_info.webpage_url,
-            color=discord.Color.purple()
+            color=discord.Color.pink()
         )
         
         await MusicEmbed._add_requester(embed, request_info)
@@ -57,6 +67,24 @@ class MusicEmbed:
         MusicEmbed._add_space(embed)
         await MusicEmbed._add_footer(embed)
         
+        return embed
+    
+    @staticmethod
+    async def create_queue(queue: list[RequestInfo]) -> discord.Embed:
+        embed = discord.Embed(
+            title="🎵 Danh sách hàng đợi",
+            color=discord.Color.pink()
+        )
+        
+        for i, request_info in enumerate(queue):
+            music_info = request_info.music_info
+            embed.add_field(
+                name=f"{i + 1}. {music_info.title}",
+                value=f"👤 {request_info.requester.display_name}",
+                inline=False
+            )
+
+        await MusicEmbed._add_footer(embed)
         return embed
 
     @staticmethod
@@ -78,7 +106,7 @@ class MusicEmbed:
         time_display = UIHelper.format_time_display(time_played, music_info._duration())
         embed.add_field(
             name="",
-            value=f"{process_bar}  {time_display}",
+            value=f"{process_bar}   {time_display}",
             inline=False
         )
 
@@ -109,10 +137,10 @@ class UIHelper:
         bar_length = ProcessBar.BAR_LENGTH.value
         progress_position = int(progress * bar_length)
         
-        loaded = str(ProcessBar.HEAVY_HORIZONTAL) * progress_position
-        remaining = str(ProcessBar.LIGHT_HORIZONTAL) * (bar_length - progress_position)
-        cursor = str(ProcessBar.MEDIUM_WHITE_CIRCLE)
-        
+        loaded = str(ProcessBar.BLACK_SQUARE_WITH_WHITE) * progress_position
+        remaining = str(ProcessBar.WHITE_SQUARE_WITH_BLACK) * (bar_length - progress_position)
+        cursor = str(ProcessBar.BLACK_WHITE_VERTICAL_RECTANGLE_MEDIUM)
+        # logger.debug(f"{loaded}{cursor}{remaining}")
         return f"{loaded}{cursor}{remaining}"
 
     @staticmethod
