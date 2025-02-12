@@ -47,6 +47,7 @@ class MusicState:
             cls._instance._history = deque()
             cls._instance._current_message = None
             cls._instance._is_playing = False
+            cls._instance._current_track = None
         return cls._instance
     
     @property
@@ -65,17 +66,33 @@ class MusicState:
     def current_message(self, message: discord.Message):
         self._current_message = message
     
-    def add_to_queue(self, request_info: RequestInfo):
-        self._queue.append(request_info)
-        return len(self._queue)
-    
-    def add_to_queue_front(self, request_info: RequestInfo):
-        self._queue.appendleft(request_info)
-        return len(self._queue)
-    
-    def remove_from_queue(self) -> Optional[RequestInfo]:
+    def next_track(self):
         if self._queue:
-            return self._queue.popleft()
+            track = self._queue.popleft()
+            self._current_track = track
+            self.add_to_history(track)
+            return track
+        return None
+    
+    def previous_track(self) -> Optional[RequestInfo]:
+        track = self._history.popleft()
+        if track:
+            self.add_track(track, 0)
+            return track
+        return None
+    
+    def add_track(self, request_info: RequestInfo, position: int = -1):
+        if position == -1:
+            self._queue.append(request_info)
+        elif position >= len(self._queue):
+            self._queue.append(request_info)
+        else:
+            self._queue.insert(position, request_info)
+        return position if position != -1 else len(self._queue)
+    
+    def remove_track(self, position: int):
+        if 0 <= position < len(self._queue):
+            return self._queue.pop(position)
         return None
     
     def get_queue(self) -> List[RequestInfo]:
@@ -86,11 +103,6 @@ class MusicState:
     
     def add_to_history(self, request_info: RequestInfo):
         self._history.appendleft(request_info)
-    
-    def get_previous(self) -> Optional[RequestInfo]:
-        if self._history:
-            return self._history.popleft()
-        return None
     
     def clear_history(self):
         self._history.clear()

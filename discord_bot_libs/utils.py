@@ -31,7 +31,7 @@ async def send_temp_message(interaction: discord.Interaction, content: str, dele
         pass  # Message already deleted
 
 
-async def send_temp_embed(interaction: discord.Interaction, title: str = '', description: str = '', url: str = '', delete_after: float = 5.0, color: discord.Color = discord.Color.pink()):
+async def send_temp_noti(interaction: discord.Interaction, title: str = '', description: str = '', url: str = '', delete_after: float = 7.0, color: discord.Color = discord.Color.pink()):
     """Send a temporary embed message that will be deleted after specified seconds"""
     embed = discord.Embed(
         title=title,
@@ -40,6 +40,11 @@ async def send_temp_embed(interaction: discord.Interaction, title: str = '', des
         color=color,
     )
     
+    await send_temp_embed(interaction, embed, delete_after)
+
+
+async def send_temp_embed(interaction: discord.Interaction, embed: discord.Embed, delete_after: float = 15):
+    """Send a temporary embed message that will be deleted after specified seconds"""
     try:
         message = await interaction.followup.send(embed=embed, wait=True, ephemeral=False)
         await asyncio.sleep(delete_after)

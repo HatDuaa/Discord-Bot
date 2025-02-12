@@ -5,6 +5,11 @@ from enum import Enum
 import discord
 
 
+FFMPEG_OPTIONS = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    'options': '-vn'
+}
+
 class RunningEnvironment():
 	TESTING = 'test'
 	DEPLOY = 'deploy'
