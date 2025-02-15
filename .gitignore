@@ -34,3 +34,6 @@ settings.json
 venv
 __pycache__/
 *.py[cod]
+
+test*
+test/

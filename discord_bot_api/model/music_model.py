@@ -1,4 +1,5 @@
 from datetime import datetime
+from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
@@ -74,10 +75,9 @@ class MusicState:
             return track
         return None
     
-    def previous_track(self) -> Optional[RequestInfo]:
-        track = self._history.popleft()
-        if track:
-            self.add_track(track, 0)
+    def remove_previous_track(self) -> Optional[RequestInfo]:
+        if self._history:
+            track = self._history.popleft()
             return track
         return None
     
@@ -98,10 +98,14 @@ class MusicState:
     def get_queue(self) -> List[RequestInfo]:
         return list(self._queue)
     
+    def get_history(self) -> List[RequestInfo]:
+        return list(self._history)
+    
     def clear_queue(self):
         self._queue.clear()
     
     def add_to_history(self, request_info: RequestInfo):
+        logger.debug(f"Add to history: {request_info.music_info.title}")
         self._history.appendleft(request_info)
     
     def clear_history(self):

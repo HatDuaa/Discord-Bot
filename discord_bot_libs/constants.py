@@ -20,6 +20,9 @@ class TimeConfig:
 	HUMAN_READABLE_HOUR_MIN = '%H:%M'
 	HUMAN_READABLE_DATE = '%Y-%m-%d'
 
+
+class DiscordIinfo:
+    SERVER_ID = '1086855598957658282'
 class Author:
     NAME = 'Hạt Bí'
     DISCORD_ID = '546919469470056448'

@@ -19,8 +19,8 @@ class MusicControlButtons(discord.ui.View):
         try:
             await self.music_manager.previous(interaction)
         except Exception as e:
-            logger.error(f"Error in skip button: {e}")
-            await interaction.followup.send("❌ Có lỗi xảy ra khi previous!", ephemeral=True)
+            logger.error(f"Error in previous button: {e}")
+            await interaction.followup.send("❌ An error occurred while previousing", ephemeral=True)
 
     @discord.ui.button(label="⏸️ Pause", style=discord.ButtonStyle.primary)
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -45,7 +45,7 @@ class MusicControlButtons(discord.ui.View):
             await self.music_manager.skip(interaction)
         except Exception as e:
             logger.error(f"Error in skip button: {e}")
-            await interaction.followup.send("❌ Có lỗi xảy ra khi skip!", ephemeral=True)
+            await interaction.followup.send("❌ An error occurred while skipping!", ephemeral=True)
 
 
 class MusicEmbed:

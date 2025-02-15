@@ -76,6 +76,6 @@ async def previous_music(interaction: discord.Interaction):
     await music_manager.previous(interaction)
 
 @client.tree.command(name='queue', description='Xem danh sách hàng đợi', guild=GUILD_ID)
-async def previous_music(interaction: discord.Interaction):
+async def queue(interaction: discord.Interaction):
     await interaction.response.defer()
     await music_manager.queue(interaction)
